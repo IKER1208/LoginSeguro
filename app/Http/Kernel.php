@@ -21,6 +21,15 @@ class Kernel extends HttpKernel
         \Illuminate\Foundation\Http\Middleware\ValidatePostSize::class,
         \App\Http\Middleware\TrimStrings::class,
         \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
+
+        // ============================================================
+        // SEGURIDAD - PUNTO 5: Headers HTTP de Seguridad (Global)
+        // ============================================================
+        // Se aplica a TODAS las solicitudes HTTP de la aplicación.
+        // Inyecta: X-Frame-Options, X-Content-Type-Options, HSTS, CSP,
+        //          Referrer-Policy, Permissions-Policy.
+        // Mitiga: XSS, Clickjacking, MIME sniffing, downgrade HTTPS.
+        \App\Http\Middleware\SecurityHeadersMiddleware::class,
     ];
 
     /**
@@ -33,6 +42,23 @@ class Kernel extends HttpKernel
             \App\Http\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,
+
+            // ============================================================
+            // SEGURIDAD - PUNTO 3: AuthenticateSession (Sesiones Defensivas)
+            // ============================================================
+            // Habilita la invalidación de sesiones concurrentes.
+            // Trabaja en conjunto con Auth::logoutOtherDevices() para permitir
+            // solo UN dispositivo activo a la vez por usuario.
+            //
+            // Cómo funciona: Compara el hash de la contraseña almacenado en la
+            // sesión con el hash actual de la BD. Si difieren (porque
+            // logoutOtherDevices re-hasheó la contraseña), la sesión se invalida.
+            //
+            // Mitiga: Secuestro de sesión, uso de credenciales robadas,
+            //         acceso no autorizado desde sesiones olvidadas.
+            // OWASP: A07:2021 - Identification and Authentication Failures
+            \Illuminate\Session\Middleware\AuthenticateSession::class,
+
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,

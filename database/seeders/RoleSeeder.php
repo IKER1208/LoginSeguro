@@ -38,7 +38,7 @@ class RoleSeeder extends Seeder
         $userInvitado = User::create([
             'name'     => 'Invitado Demo',
             'email'    => 'invitado@test.com',
-            'password' => 'password',
+            'password' => 'f33_K4Na%/VG',
         ]);
         $userInvitado->assignRole($invitado);
 
@@ -48,7 +48,7 @@ class RoleSeeder extends Seeder
         $userUsuario = User::create([
             'name'     => 'Usuario Demo',
             'email'    => 'usuario@test.com',
-            'password' => 'password',
+            'password' => 'f33_K4Na%/VG',
         ]);
         $userUsuario->assignRole($usuario);
 
@@ -58,7 +58,7 @@ class RoleSeeder extends Seeder
         $userAdmin = User::create([
             'name'     => 'Admin Demo',
             'email'    => 'admin@test.com',
-            'password' => 'password',
+            'password' => 'f33_K4Na%/VG',
         ]);
         $userAdmin->assignRole($admin);
     }

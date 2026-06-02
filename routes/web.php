@@ -65,6 +65,19 @@ Route::middleware('auth')->prefix('2fa-setup')->group(function () {
 // ============================================================
 // DASHBOARDS PROTEGIDOS POR ROL + NIVEL MFA
 // ============================================================
+// SEGURIDAD CRÍTICA: El middleware 'role' DEBE ejecutarse ANTES
+// que los middlewares MFA ('2fa', '3fa').
+//
+// Orden correcto:  auth → role → 2fa → 3fa
+// Orden incorrecto: auth → 2fa → 3fa → role  ← VULNERABLE
+//
+// Si el rol se verifica después del MFA, un usuario sin el rol
+// correcto sería redirigido al formulario de configuración MFA
+// en lugar de recibir un 403 Forbidden. Esto:
+// 1. Expone formularios MFA a usuarios no autorizados
+// 2. Permite a un Invitado configurar 2FA sin necesitarlo
+// 3. Permite a un Usuario ver el flujo 3FA de administrador
+// ============================================================
 
 // --- Dashboard Invitado: Solo requiere 1FA (auth) + rol Invitado ---
 Route::middleware(['auth', 'role:Invitado'])->group(function () {
@@ -73,15 +86,17 @@ Route::middleware(['auth', 'role:Invitado'])->group(function () {
     })->name('guest.dashboard');
 });
 
-// --- Dashboard Usuario: Requiere 1FA + 2FA + rol Usuario ---
-Route::middleware(['auth', '2fa', 'role:Usuario'])->group(function () {
+// --- Dashboard Usuario: Requiere rol Usuario + 2FA ---
+// Flujo: auth → role:Usuario (403 si no es Usuario) → 2fa (redirige a TOTP si falta)
+Route::middleware(['auth', 'role:Usuario', '2fa'])->group(function () {
     Route::get('/user-dashboard', function () {
         return view('dashboards.user');
     })->name('user.dashboard');
 });
 
-// --- Dashboard Admin: Requiere 1FA + 2FA + 3FA + rol Admin ---
-Route::middleware(['auth', '2fa', '3fa', 'role:Admin'])->group(function () {
+// --- Dashboard Admin: Requiere rol Admin + 2FA + 3FA ---
+// Flujo: auth → role:Admin (403 si no es Admin) → 2fa → 3fa
+Route::middleware(['auth', 'role:Admin', '2fa', '3fa'])->group(function () {
     Route::get('/admin-dashboard', function () {
         return view('dashboards.admin');
     })->name('admin.dashboard');

@@ -9,6 +9,22 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * SEGURIDAD - PUNTO 2: Prevención de Enumeración de Usuarios
+ * ============================================================
+ * Mitiga: OWASP A07:2021 - Identification and Authentication Failures
+ *
+ * La enumeración de usuarios ocurre cuando un atacante puede determinar
+ * si un email/usuario existe en el sistema basándose en las diferencias
+ * en los mensajes de error de autenticación.
+ *
+ * Ejemplo de vulnerabilidad:
+ * - "El email no existe" → el atacante sabe que el email NO está registrado
+ * - "La contraseña es incorrecta" → el atacante sabe que el email SÍ existe
+ *
+ * SOLUCIÓN: Usar un mensaje GENÉRICO idéntico independientemente de si
+ * el email existe o no: "Las credenciales proporcionadas no son correctas."
+ */
 class LoginRequest extends FormRequest
 {
     /**
@@ -33,7 +49,17 @@ class LoginRequest extends FormRequest
     }
 
     /**
-     * Attempt to authenticate the request's credentials.
+     * Intenta autenticar las credenciales de la solicitud.
+     *
+     * SEGURIDAD - Mensajes Genéricos:
+     * El mensaje de error 'Las credenciales proporcionadas no son correctas.'
+     * se muestra siempre que la autenticación falle, sin importar la causa:
+     * - Email no registrado → mismo mensaje genérico
+     * - Contraseña incorrecta → mismo mensaje genérico
+     * - Cuenta deshabilitada → mismo mensaje genérico
+     *
+     * Esto previene que un atacante pueda enumerar usuarios válidos
+     * mediante análisis diferencial de respuestas.
      *
      * @throws \Illuminate\Validation\ValidationException
      */
@@ -44,8 +70,11 @@ class LoginRequest extends FormRequest
         if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
 
+            // SEGURIDAD: Mensaje genérico que NO revela si el email existe o no.
+            // Se usa una cadena fija en español en lugar de trans('auth.failed')
+            // para garantizar que el mensaje sea siempre el mismo.
             throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
+                'email' => 'Las credenciales proporcionadas no son correctas.',
             ]);
         }
 
@@ -53,7 +82,11 @@ class LoginRequest extends FormRequest
     }
 
     /**
-     * Ensure the login request is not rate limited.
+     * Verifica que la solicitud de login no esté bloqueada por rate limiting.
+     *
+     * SEGURIDAD: Protección contra fuerza bruta.
+     * Limita a 5 intentos por minuto usando la combinación email+IP
+     * como identificador para evitar bloqueos masivos por IP compartida.
      *
      * @throws \Illuminate\Validation\ValidationException
      */
@@ -68,15 +101,17 @@ class LoginRequest extends FormRequest
         $seconds = RateLimiter::availableIn($this->throttleKey());
 
         throw ValidationException::withMessages([
-            'email' => trans('auth.throttle', [
-                'seconds' => $seconds,
-                'minutes' => ceil($seconds / 60),
-            ]),
+            'email' => 'Demasiados intentos de inicio de sesión. Por favor, inténtalo de nuevo en ' . $seconds . ' segundos.',
         ]);
     }
 
     /**
-     * Get the rate limiting throttle key for the request.
+     * Clave de throttling para rate limiting.
+     *
+     * SEGURIDAD: Combina email + IP para el rate limiting.
+     * Esto asegura que:
+     * - Un atacante no pueda probar infinitas contraseñas para un email
+     * - Usuarios legítimos en la misma red no se bloqueen entre sí
      */
     public function throttleKey(): string
     {
