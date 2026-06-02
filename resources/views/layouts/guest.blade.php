@@ -26,5 +26,9 @@
                 {{ $slot }}
             </div>
         </div>
+
+        {{-- Google reCAPTCHA v2 - Carga al final del body para asegurar que el DOM esté listo --}}
+        <script src="https://www.google.com/recaptcha/api.js" async defer></script>
     </body>
 </html>
+

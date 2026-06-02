@@ -88,13 +88,19 @@ class SecurityHeadersMiddleware
         //
         // NOTA: Ajustar 'unsafe-inline' en style-src según las necesidades del frontend.
         // En un entorno ideal, se usarían nonces o hashes en lugar de 'unsafe-inline'.
+        //
+        // reCAPTCHA v2 requiere los dominios de Google para:
+        // - script-src: cargar api.js y gstatic.com/recaptcha
+        // - frame-src: renderizar el iframe del widget
+        // - connect-src: comunicación con la API de Google
         $csp = implode('; ', [
             "default-src 'self'",
-            "script-src 'self' 'nonce-" . Vite::cspNonce() . "'",
+            "script-src 'self' 'nonce-" . Vite::cspNonce() . "' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/",
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data:",
-            "font-src 'self'",
+            "font-src 'self' https://fonts.bunny.net https://fonts.gstatic.com",
             "connect-src 'self'",
+            "frame-src https://www.google.com/recaptcha/",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",

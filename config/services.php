@@ -31,4 +31,19 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Google reCAPTCHA v2
+    |--------------------------------------------------------------------------
+    |
+    | Configuración para el servicio de Google reCAPTCHA v2 Checkbox.
+    | Las claves se obtienen desde: https://www.google.com/recaptcha/admin
+    |
+    */
+    'recaptcha' => [
+        'site_key' => env('RECAPTCHA_SITE_KEY'),
+        'secret_key' => env('RECAPTCHA_SECRET_KEY'),
+        'verify_url' => 'https://www.google.com/recaptcha/api/siteverify',
+    ],
+
 ];
