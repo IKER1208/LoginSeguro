@@ -4,7 +4,6 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Vite;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -76,25 +75,29 @@ class SecurityHeadersMiddleware
         // Directivas:
         // - default-src 'self': Solo permite recursos del mismo origen por defecto.
         // - script-src 'self': Solo permite scripts del mismo origen (bloquea inline y eval).
-        // - style-src 'self' 'unsafe-inline': Permite estilos del mismo origen + inline
-        //   (necesario para algunos frameworks CSS como Blade/Tailwind).
-        // - img-src 'self' data:: Permite imágenes propias y data URIs (para QR codes del 2FA).
-        // - font-src 'self': Solo fuentes del mismo origen.
+        // - script-src: 'self' + 'unsafe-inline' para que Alpine.js funcione
+        //   (Alpine usa atributos inline como x-data, @click, x-show, etc.
+        //   y los componentes Breeze usan onclick handlers para logout).
+        // - style-src 'self' 'unsafe-inline' + fonts.bunny.net: Permite estilos
+        //   inline (Tailwind) y la hoja de estilos de fuentes externas.
+        // - img-src 'self' data: + api.qrserver.com: Para QR codes del 2FA.
+        // - font-src 'self' + fonts.bunny.net: Fuentes Figtree desde CDN.
         // - connect-src 'self': Solo conexiones AJAX/fetch al mismo origen.
-        // - frame-ancestors 'none': Equivalente moderno a X-Frame-Options: DENY
-        //   (redundancia defensiva contra clickjacking).
+        //   En desarrollo se añade ws://localhost:* para Vite HMR.
+        // - frame-ancestors 'none': Anti-clickjacking (refuerza X-Frame-Options).
         // - base-uri 'self': Previene inyección de <base> tags maliciosos.
         // - form-action 'self': Solo permite enviar formularios al mismo origen.
-        //
-        // NOTA: Ajustar 'unsafe-inline' en style-src según las necesidades del frontend.
-        // En un entorno ideal, se usarían nonces o hashes en lugar de 'unsafe-inline'.
+        $connectSrc = app()->environment('local')
+            ? "connect-src 'self' ws://localhost:* http://localhost:*"
+            : "connect-src 'self'";
+
         $csp = implode('; ', [
             "default-src 'self'",
-            "script-src 'self' 'nonce-" . Vite::cspNonce() . "'",
-            "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' data:",
-            "font-src 'self'",
-            "connect-src 'self'",
+            "script-src 'self' 'unsafe-inline'",
+            "style-src 'self' 'unsafe-inline' https://fonts.bunny.net",
+            "img-src 'self' data: https://api.qrserver.com",
+            "font-src 'self' https://fonts.bunny.net",
+            $connectSrc,
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",
