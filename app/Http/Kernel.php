@@ -64,5 +64,20 @@ class Kernel extends HttpKernel
         'signed' => \App\Http\Middleware\ValidateSignature::class,
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
+
+        // ============================================================
+        // MIDDLEWARES MFA PERSONALIZADOS
+        // ============================================================
+        // Verifican el nivel de autenticación en la sesión antes de
+        // permitir el acceso a rutas protegidas por MFA.
+        '2fa' => \App\Http\Middleware\Require2FA::class,
+        '3fa' => \App\Http\Middleware\Require3FA::class,
+
+        // ============================================================
+        // MIDDLEWARE SPATIE (Roles y Permisos)
+        // ============================================================
+        'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
+        'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
+        'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
     ];
 }
