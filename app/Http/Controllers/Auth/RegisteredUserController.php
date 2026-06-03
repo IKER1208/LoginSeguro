@@ -46,9 +46,24 @@ class RegisteredUserController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
+        // ============================================================
+        // ASIGNACIÓN DE ROL: Invitado (por defecto)
+        // ============================================================
+        // Todo usuario registrado desde el formulario público recibe
+        // el rol "Invitado", que solo requiere 1FA (email + password).
+        // La promoción a "Usuario" o "Admin" se hace manualmente
+        // por un administrador del sistema.
+        $user->assignRole('Invitado');
+
         event(new Registered($user));
 
         Auth::login($user);
+
+        // SEGURIDAD: Regenerar sesión para prevenir Session Fixation.
+        $request->session()->regenerate();
+
+        // Establecer el nivel de autenticación (1FA completado tras registro)
+        session(['auth_level' => 1]);
 
         return redirect(RouteServiceProvider::HOME);
     }
