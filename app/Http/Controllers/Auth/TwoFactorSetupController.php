@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use PragmaRX\Google2FA\Google2FA;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 /**
  * TwoFactorSetupController - Configuración inicial de 2FA (TOTP)
@@ -49,9 +50,15 @@ class TwoFactorSetupController extends Controller
             $secret
         );
 
+        // SEGURIDAD: Generar el QR localmente como SVG.
+        // Evitamos enviar el secreto a APIs externas (ej. api.qrserver.com).
+        $qrCodeSvg = QrCode::size(200)
+            ->margin(1)
+            ->generate($qrCodeUrl);
+
         return view('auth.two-factor-setup', [
             'secret' => $secret,
-            'qrCodeUrl' => $qrCodeUrl,
+            'qrCodeSvg' => $qrCodeSvg,
         ]);
     }
 

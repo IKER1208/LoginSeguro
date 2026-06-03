@@ -12,9 +12,8 @@
     <!-- QR Code -->
     <div class="mb-4 flex flex-col items-center">
         <div class="p-4 bg-white border rounded-lg shadow-sm">
-            {{-- Generar QR code usando una API pública --}}
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={{ urlencode($qrCodeUrl) }}"
-                 alt="QR Code para 2FA" width="200" height="200" />
+            {{-- Renderizar el QR code generado localmente como SVG inline --}}
+            {!! $qrCodeSvg !!}
         </div>
     </div>
 
