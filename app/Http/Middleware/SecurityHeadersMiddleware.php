@@ -92,10 +92,13 @@ class SecurityHeadersMiddleware
         // reCAPTCHA v2 requiere los dominios de Google para:
         // - script-src: cargar api.js y gstatic.com/recaptcha
         // - frame-src: renderizar el iframe del widget
-        // - connect-src: comunicación con la API de Google
+        //
+        // Alpine.js (usado por Laravel Breeze) requiere 'unsafe-eval' porque
+        // evalúa expresiones JS en atributos como x-data, @click, x-show
+        // usando new Function(). Sin esto, los dropdowns y menús no funcionan.
         $csp = implode('; ', [
             "default-src 'self'",
-            "script-src 'self' 'nonce-" . Vite::cspNonce() . "' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/",
+            "script-src 'self' 'unsafe-eval' 'nonce-" . Vite::cspNonce() . "' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/",
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data:",
             "font-src 'self' https://fonts.bunny.net https://fonts.gstatic.com",
