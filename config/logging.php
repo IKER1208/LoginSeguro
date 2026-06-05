@@ -54,7 +54,7 @@ return [
     'channels' => [
         'stack' => [
             'driver' => 'stack',
-            'channels' => ['single'],
+            'channels' => ['daily'],
             'ignore_exceptions' => false,
         ],
 
@@ -69,7 +69,32 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+
+        /*
+        |----------------------------------------------------------------------
+        | SEGURIDAD: Canal dedicado para eventos de seguridad
+        |----------------------------------------------------------------------
+        |
+        | Todos los eventos de autenticación, MFA, rate limiting y acceso
+        | se registran aquí para auditoría y monitoreo.
+        |
+        | Separado del log general para:
+        | 1. Facilitar integración con SIEM (ELK, Splunk, etc.)
+        | 2. Cumplimiento PCI-DSS / ISO 27001
+        | 3. Análisis forense post-incidente
+        | 4. Retención diferenciada (90 días vs 30 días)
+        |
+        | Uso: Log::channel('security')->info(...) o Log::channel('security')->warning(...)
+        |
+        */
+        'security' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/security.log'),
+            'level' => 'info',
+            'days' => 90,
             'replace_placeholders' => true,
         ],
 

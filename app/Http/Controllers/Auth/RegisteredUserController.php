@@ -10,7 +10,7 @@ use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rules;
 use Illuminate\View\View;
 
@@ -27,6 +27,10 @@ class RegisteredUserController extends Controller
     /**
      * Handle an incoming registration request.
      *
+     * SEGURIDAD: La contraseña se asigna en texto plano porque el cast
+     * 'hashed' en el modelo User se encarga automáticamente del hashing.
+     * NO usar Hash::make() aquí, ya que causaría double-hashing.
+     *
      * @throws \Illuminate\Validation\ValidationException
      */
     public function store(Request $request): RedirectResponse
@@ -40,10 +44,12 @@ class RegisteredUserController extends Controller
             'g-recaptcha-response' => ['required', new Recaptcha],
         ]);
 
+        // SEGURIDAD: El cast 'hashed' en User cifra automáticamente.
+        // NO usar Hash::make() para evitar double-hashing.
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'password' => $request->password,
         ]);
 
         // ============================================================
@@ -54,6 +60,16 @@ class RegisteredUserController extends Controller
         // La promoción a "Usuario" o "Admin" se hace manualmente
         // por un administrador del sistema.
         $user->assignRole('Invitado');
+
+        // SEGURIDAD: Log de registro exitoso para auditoría
+        Log::channel('security')->info('✅ [SEGURIDAD] Nuevo usuario registrado', [
+            'user_id'   => $user->id,
+            'email'     => $user->email,
+            'role'      => 'Invitado',
+            'ip'        => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'timestamp' => now()->toIso8601String(),
+        ]);
 
         event(new Registered($user));
 

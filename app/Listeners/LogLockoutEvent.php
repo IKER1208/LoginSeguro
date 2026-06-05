@@ -38,7 +38,7 @@ class LogLockoutEvent
         // El evento Lockout recibe el Request completo
         $request = $event->request;
 
-        Log::warning('🚨 [SEGURIDAD] Cuenta bloqueada por exceso de intentos (Rate Limit)', [
+        Log::channel('security')->warning('🚨 [SEGURIDAD] Cuenta bloqueada por exceso de intentos (Rate Limit)', [
             'email'      => $request->input('email', 'N/A'),
             'ip'         => $request->ip(),
             'user_agent' => $request->userAgent(),

@@ -37,7 +37,7 @@ class LogAuthenticationFailure
         // Obtener información de la solicitud HTTP actual
         $request = request();
 
-        Log::warning('🔒 [SEGURIDAD] Intento de autenticación fallido', [
+        Log::channel('security')->warning('🔒 [SEGURIDAD] Intento de autenticación fallido', [
             'email'      => $event->credentials['email'] ?? 'N/A',
             'ip'         => $request->ip(),
             'user_agent' => $request->userAgent(),

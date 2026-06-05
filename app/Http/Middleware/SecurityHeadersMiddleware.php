@@ -18,6 +18,13 @@ use Symfony\Component\HttpFoundation\Response;
  * Referencias OWASP:
  * - A05:2021 – Security Misconfiguration (falta de headers de seguridad)
  * - A03:2021 – Injection (CSP mitiga XSS reflejado/almacenado)
+ *
+ * MEJORAS APLICADAS (Hardening):
+ * - Cache-Control seguro para páginas autenticadas
+ * - HSTS condicional (solo producción)
+ * - Cross-Origin-Opener-Policy (COOP)
+ * - Cross-Origin-Resource-Policy (CORP)
+ * - X-Permitted-Cross-Domain-Policies
  */
 class SecurityHeadersMiddleware
 {
@@ -54,17 +61,22 @@ class SecurityHeadersMiddleware
         $response->headers->set('X-Content-Type-Options', 'nosniff');
 
         // ============================================================
-        // Strict-Transport-Security (HSTS)
+        // Strict-Transport-Security (HSTS) — CONDICIONAL
         // ============================================================
         // Mitiga: Ataques de downgrade HTTP y Man-in-the-Middle (MITM)
         // Fuerza al navegador a usar HTTPS exclusivamente durante 1 año
         // (31536000 segundos). includeSubDomains aplica la política a
         // todos los subdominios para prevenir ataques en subdominios.
-        // NOTA: Solo activar en producción con certificado SSL válido.
-        $response->headers->set(
-            'Strict-Transport-Security',
-            'max-age=31536000; includeSubDomains'
-        );
+        //
+        // MEJORA: Solo se activa en producción con certificado SSL válido.
+        // En local con HTTP, HSTS puede causar problemas de conectividad
+        // al forzar HTTPS donde no existe.
+        if (app()->environment('production', 'staging')) {
+            $response->headers->set(
+                'Strict-Transport-Security',
+                'max-age=31536000; includeSubDomains'
+            );
+        }
 
         // ============================================================
         // Content-Security-Policy (CSP)
@@ -133,8 +145,49 @@ class SecurityHeadersMiddleware
         // estos recursos del dispositivo del usuario.
         $response->headers->set(
             'Permissions-Policy',
-            'camera=(), microphone=(), geolocation=()'
+            'camera=(), microphone=(), geolocation=(), payment=()'
         );
+
+        // ============================================================
+        // MEJORA: Cache-Control seguro para páginas autenticadas
+        // ============================================================
+        // Mitiga: Exposición de datos sensibles en caché del navegador
+        // Previene que el botón "Atrás" del navegador muestre páginas
+        // autenticadas después de cerrar sesión. También evita que
+        // proxies intermedios almacenen respuestas con datos sensibles.
+        //
+        // Solo se aplica a páginas HTML autenticadas, no a assets estáticos.
+        if ($request->user() && !$request->is('build/*', 'assets/*', '*.css', '*.js', '*.ico')) {
+            $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+            $response->headers->set('Pragma', 'no-cache');
+            $response->headers->set('Expires', '0');
+        }
+
+        // ============================================================
+        // MEJORA: Cross-Origin-Opener-Policy (COOP)
+        // ============================================================
+        // Mitiga: Ataques cross-origin via window.opener
+        // Aísla el contexto de navegación impidiendo que ventanas
+        // abiertas desde otros orígenes interactúen con nuestra aplicación.
+        // Previene ataques de tipo Spectre y cross-origin data leaks.
+        $response->headers->set('Cross-Origin-Opener-Policy', 'same-origin');
+
+        // ============================================================
+        // MEJORA: Cross-Origin-Resource-Policy (CORP)
+        // ============================================================
+        // Mitiga: Carga no autorizada de recursos desde otros orígenes
+        // Solo permite que recursos de nuestra aplicación sean cargados
+        // desde el mismo origen. Previene data leaks via <img>, <script>, etc.
+        $response->headers->set('Cross-Origin-Resource-Policy', 'same-origin');
+
+        // ============================================================
+        // MEJORA: X-Permitted-Cross-Domain-Policies
+        // ============================================================
+        // Mitiga: Acceso a recursos via Adobe Flash/PDF plugins
+        // Previene que archivos crossdomain.xml sean interpretados
+        // por plugins como Flash o Acrobat Reader, bloqueando
+        // solicitudes cross-domain desde estos vectores legacy.
+        $response->headers->set('X-Permitted-Cross-Domain-Policies', 'none');
 
         return $response;
     }

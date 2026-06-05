@@ -7,6 +7,7 @@ use App\Http\Requests\Auth\LoginRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 class AuthenticatedSessionController extends Controller
@@ -73,13 +74,22 @@ class AuthenticatedSessionController extends Controller
         } catch (\Exception $e) {
             // Si falla (ej: driver de sesión no soportado), no bloquear el login.
             // Registrar el error para revisión.
-            \Illuminate\Support\Facades\Log::warning(
+            \Illuminate\Support\Facades\Log::channel('security')->warning(
                 '⚠️ [SEGURIDAD] No se pudieron invalidar otras sesiones: ' . $e->getMessage()
             );
         }
 
         // Establecer el nivel de autenticación inicial (1FA completado)
         session(['auth_level' => 1]);
+
+        // SEGURIDAD: Log de inicio de pipeline MFA
+        Log::channel('security')->info('✅ [SEGURIDAD] Login 1FA exitoso, pipeline MFA iniciado', [
+            'user_id'   => Auth::id(),
+            'email'     => Auth::user()->email,
+            'ip'        => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'timestamp' => now()->toIso8601String(),
+        ]);
 
         // Redirigir al controlador que decide el siguiente paso
         // basándose en el rol del usuario
@@ -94,7 +104,18 @@ class AuthenticatedSessionController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
+        $userId = Auth::id();
+        $userEmail = Auth::user()?->email;
+
         Auth::guard('web')->logout();
+
+        // SEGURIDAD: Log de logout
+        Log::channel('security')->info('🚪 [SEGURIDAD] Logout realizado', [
+            'user_id'   => $userId,
+            'email'     => $userEmail,
+            'ip'        => $request->ip(),
+            'timestamp' => now()->toIso8601String(),
+        ]);
 
         // Invalidar toda la sesión (elimina auth_level y demás datos)
         $request->session()->invalidate();

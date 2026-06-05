@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 use PragmaRX\Google2FA\Google2FA;
 
@@ -67,6 +68,15 @@ class TwoFactorController extends Controller
         );
 
         if (! $valid) {
+            // SEGURIDAD: Log de intento fallido de 2FA
+            Log::channel('security')->warning('❌ [SEGURIDAD] Verificación 2FA fallida (código TOTP incorrecto)', [
+                'user_id'   => $user->id,
+                'email'     => $user->email,
+                'ip'        => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'timestamp' => now()->toIso8601String(),
+            ]);
+
             return back()->withErrors([
                 'code' => 'El código de verificación es incorrecto o ha expirado.',
             ]);
@@ -78,6 +88,14 @@ class TwoFactorController extends Controller
 
         // Elevar el nivel de autenticación a 2 (2FA completado)
         session(['auth_level' => 2]);
+
+        // SEGURIDAD: Log de verificación 2FA exitosa
+        Log::channel('security')->info('✅ [SEGURIDAD] Verificación 2FA exitosa', [
+            'user_id'   => $user->id,
+            'email'     => $user->email,
+            'ip'        => $request->ip(),
+            'timestamp' => now()->toIso8601String(),
+        ]);
 
         return redirect()->route('role.redirect');
     }
