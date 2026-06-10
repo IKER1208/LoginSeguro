@@ -56,8 +56,9 @@ class Recaptcha implements ValidationRule
 
                 $fail('La verificación del captcha falló. Por favor, inténtalo de nuevo.');
             }
-        } catch (\Exception $e) {
-            // Registrar la excepción para debugging
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            // try/catch JUSTIFICADO: reCAPTCHA es un servicio externo (API de Google).
+            // ConnectionException cubre: DNS failure, timeout, red caída.
             Log::error('reCAPTCHA verification error: ' . $e->getMessage());
 
             $fail('No se pudo verificar el captcha. Por favor, inténtalo de nuevo.');

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Traits\LogsSecurityEvents;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -11,6 +12,8 @@ use Illuminate\View\View;
 
 class ProfileController extends Controller
 {
+    use LogsSecurityEvents;
+
     /**
      * Display the user's profile form.
      */
@@ -23,6 +26,11 @@ class ProfileController extends Controller
 
     /**
      * Update the user's profile information.
+     *
+     * CLEAN CODE:
+     * - Validación delegada a ProfileUpdateRequest (Form Request nativo de Breeze).
+     * - NO se necesita try/catch: User::save() es operación Eloquent local.
+     *   Errores de BD (constraint violations) se manejan centralizadamente en Handler.
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
@@ -39,6 +47,17 @@ class ProfileController extends Controller
 
     /**
      * Delete the user's account.
+     *
+     * SEGURIDAD:
+     * - Requiere confirmación de contraseña (regla 'current_password').
+     * - Se loguea el evento ANTES de eliminar al usuario.
+     * - La sesión se invalida completamente post-eliminación.
+     *
+     * CLEAN CODE:
+     * - Usa validación nativa (validateWithBag) — no necesita Form Request
+     *   dedicado porque es una sola regla simple.
+     * - NO se necesita try/catch: validación + Eloquent delete son operaciones
+     *   locales. Errores de BD se manejan en Handler centralizado.
      */
     public function destroy(Request $request): RedirectResponse
     {
@@ -47,6 +66,12 @@ class ProfileController extends Controller
         ]);
 
         $user = $request->user();
+
+        // Loguear ANTES del logout (después Auth::user() es null)
+        $this->logSecurity('warning', '🗑️ [SEGURIDAD] Cuenta de usuario eliminada', [
+            'user_id' => $user->id,
+            'email'   => $user->email,
+        ]);
 
         Auth::logout();
 

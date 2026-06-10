@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\Verify2FARequest;
+use App\Traits\LogsSecurityEvents;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 use PragmaRX\Google2FA\Google2FA;
 
@@ -22,6 +23,8 @@ use PragmaRX\Google2FA\Google2FA;
  */
 class TwoFactorController extends Controller
 {
+    use LogsSecurityEvents;
+
     /**
      * Muestra el formulario de verificación TOTP.
      *
@@ -32,8 +35,6 @@ class TwoFactorController extends Controller
     {
         $user = Auth::user();
 
-        // Si el usuario no tiene secreto 2FA configurado,
-        // redirigir al setup de 2FA
         if (empty($user->two_factor_secret)) {
             return redirect()->route('2fa.setup');
         }
@@ -48,54 +49,35 @@ class TwoFactorController extends Controller
      * - Valida el código TOTP contra el secreto almacenado (cifrado) del usuario.
      * - Regenera la sesión tras verificación exitosa (prevención Session Fixation).
      * - Rate limited: 3 intentos por minuto (configurado en RouteServiceProvider).
-     * - El código TOTP tiene una ventana de validez limitada (~30 segundos).
+     *
+     * CLEAN CODE:
+     * - Validación delegada a Verify2FARequest (Form Request).
+     * - NO usa try/catch: verifyKey() no accede a servicios externos,
+     *   trabaja con datos locales. Cualquier excepción sería un bug real
+     *   que debe propagarse al Handler.
      */
-    public function verify(Request $request): RedirectResponse
+    public function verify(Verify2FARequest $request): RedirectResponse
     {
-        $request->validate([
-            'code' => ['required', 'string', 'size:6'],
-        ]);
-
         $user = Auth::user();
         $google2fa = new Google2FA();
 
-        // SEGURIDAD: verifyKey compara el código TOTP ingresado con
-        // el secreto del usuario. El cast 'encrypted' en el modelo
-        // descifra automáticamente el secreto al accederlo.
         $valid = $google2fa->verifyKey(
             $user->two_factor_secret,
-            $request->input('code')
+            $request->validated('code')
         );
 
         if (! $valid) {
-            // SEGURIDAD: Log de intento fallido de 2FA
-            Log::channel('security')->warning('❌ [SEGURIDAD] Verificación 2FA fallida (código TOTP incorrecto)', [
-                'user_id'   => $user->id,
-                'email'     => $user->email,
-                'ip'        => $request->ip(),
-                'user_agent' => $request->userAgent(),
-                'timestamp' => now()->toIso8601String(),
-            ]);
+            $this->logSecurity('warning', '❌ [SEGURIDAD] Verificación 2FA fallida (código TOTP incorrecto)');
 
             return back()->withErrors([
                 'code' => 'El código de verificación es incorrecto o ha expirado.',
             ]);
         }
 
-        // SEGURIDAD: Regenerar sesión para prevenir Session Fixation
-        // en cada paso exitoso de verificación MFA.
         $request->session()->regenerate();
-
-        // Elevar el nivel de autenticación a 2 (2FA completado)
         session(['auth_level' => 2]);
 
-        // SEGURIDAD: Log de verificación 2FA exitosa
-        Log::channel('security')->info('✅ [SEGURIDAD] Verificación 2FA exitosa', [
-            'user_id'   => $user->id,
-            'email'     => $user->email,
-            'ip'        => $request->ip(),
-            'timestamp' => now()->toIso8601String(),
-        ]);
+        $this->logSecurity('info', '✅ [SEGURIDAD] Verificación 2FA exitosa');
 
         return redirect()->route('role.redirect');
     }

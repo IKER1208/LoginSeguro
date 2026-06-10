@@ -3,14 +3,16 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\Verify3FARequest;
 use App\Mail\ThreeFactorPinMail;
+use App\Traits\LogsSecurityEvents;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 /**
  * ThreeFactorController - Verificación 3FA (PIN por correo)
@@ -23,12 +25,14 @@ use Illuminate\View\View;
  *
  * SEGURIDAD:
  * - El PIN se genera aleatoriamente en cada solicitud.
- * - Se almacena hasheado (bcrypt) en la BD, nunca en texto plano.
+ * - Se almacena hasheado (bcrypt/argon2id) en la BD, nunca en texto plano.
  * - Rate limited: 3 intentos por minuto con respuesta 429 personalizada.
- * - MEJORA: El PIN expira después de 5 minutos (configurable).
+ * - El PIN expira después de 5 minutos (configurable).
  */
 class ThreeFactorController extends Controller
 {
+    use LogsSecurityEvents;
+
     /**
      * Tiempo de expiración del PIN en segundos (5 minutos).
      */
@@ -38,39 +42,48 @@ class ThreeFactorController extends Controller
      * Muestra el formulario de verificación del PIN y envía el PIN por correo.
      *
      * SEGURIDAD: Genera un PIN criptográficamente aleatorio de 6 dígitos,
-     * lo hashea con bcrypt antes de guardarlo en la BD, y envía el PIN
-     * en texto plano únicamente por correo electrónico al Admin.
+     * lo hashea antes de guardarlo en la BD, y envía el PIN en texto plano
+     * únicamente por correo electrónico al Admin.
      *
-     * MEJORA: Se almacena el timestamp de generación en la sesión para
-     * implementar expiración temporal del PIN (5 minutos).
+     * CLEAN CODE — try/catch JUSTIFICADO:
+     * Mail::send() es un servicio externo (SMTP) que puede fallar por:
+     * - SMTP server down
+     * - DNS resolution failure
+     * - Network timeout
+     * - Authentication failure
+     * Se captura TransportExceptionInterface (excepción específica de Symfony Mailer)
+     * para manejar el fallo sin exponer detalles internos al usuario.
      */
-    public function show(Request $request): View
+    public function show(Request $request): View|RedirectResponse
     {
         $user = Auth::user();
 
-        // SEGURIDAD: Generar PIN aleatorio de 6 dígitos usando
-        // random_int() que es criptográficamente seguro (CSPRNG).
         $pin = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
-        // SEGURIDAD: Almacenar el PIN hasheado con bcrypt.
-        // Nunca se guarda el PIN en texto plano en la base de datos.
         $user->update([
             'three_factor_pin' => Hash::make($pin),
         ]);
 
-        // MEJORA: Almacenar timestamp de generación para expiración
         session(['3fa_pin_generated_at' => now()->timestamp]);
 
-        // Enviar el PIN en texto plano por correo al Admin
-        Mail::to($user->email)->send(new ThreeFactorPinMail($pin));
+        // try/catch JUSTIFICADO: Envío de correo es un servicio externo (SMTP).
+        // Si falla, debemos invalidar el PIN y notificar al usuario.
+        try {
+            Mail::to($user->email)->send(new ThreeFactorPinMail($pin));
+        } catch (TransportExceptionInterface $e) {
+            // Invalidar el PIN — si el email no llegó, el PIN no debe ser válido
+            $user->update(['three_factor_pin' => null]);
+            session()->forget('3fa_pin_generated_at');
 
-        // SEGURIDAD: Log de envío de PIN 3FA
-        Log::channel('security')->info('📧 [SEGURIDAD] PIN 3FA enviado por correo', [
-            'user_id'   => $user->id,
-            'email'     => $user->email,
-            'ip'        => $request->ip(),
-            'timestamp' => now()->toIso8601String(),
-        ]);
+            $this->logSecurity('error', '🚨 [SEGURIDAD] Error al enviar PIN 3FA por correo', [
+                'exception' => $e->getMessage(),
+            ]);
+
+            return redirect()->route('verify.3fa')
+                ->withErrors(['pin' => 'No se pudo enviar el PIN de seguridad. Inténtalo de nuevo.']);
+        }
+
+        $this->logSecurity('info', '📧 [SEGURIDAD] PIN 3FA enviado por correo');
 
         return view('auth.three-factor-challenge');
     }
@@ -84,27 +97,22 @@ class ThreeFactorController extends Controller
      * - Invalida el PIN tras verificación exitosa (one-time use).
      * - Regenera la sesión (prevención Session Fixation).
      * - Rate limited: 3 intentos por minuto (error 429 personalizado).
+     *
+     * CLEAN CODE:
+     * - Validación delegada a Verify3FARequest (Form Request).
+     * - NO usa try/catch: Hash::check() y session() son operaciones locales
+     *   que no acceden a servicios externos. Cualquier excepción sería un
+     *   bug real que debe propagarse al Handler centralizado.
      */
-    public function verify(Request $request): RedirectResponse
+    public function verify(Verify3FARequest $request): RedirectResponse
     {
-        $request->validate([
-            'pin' => ['required', 'string', 'size:6'],
-        ]);
-
         $user = Auth::user();
 
-        // MEJORA: Verificar expiración del PIN (5 minutos)
+        // Verificar expiración del PIN (5 minutos)
         $pinGeneratedAt = session('3fa_pin_generated_at');
         if (!$pinGeneratedAt || (now()->timestamp - $pinGeneratedAt) > self::PIN_EXPIRATION_SECONDS) {
-            // SEGURIDAD: Log de intento con PIN expirado
-            Log::channel('security')->warning('⏰ [SEGURIDAD] Intento de verificación 3FA con PIN expirado', [
-                'user_id'   => $user->id,
-                'email'     => $user->email,
-                'ip'        => $request->ip(),
-                'timestamp' => now()->toIso8601String(),
-            ]);
+            $this->logSecurity('warning', '⏰ [SEGURIDAD] Intento de verificación 3FA con PIN expirado');
 
-            // Invalidar el PIN expirado
             $user->update(['three_factor_pin' => null]);
             session()->forget('3fa_pin_generated_at');
 
@@ -112,42 +120,22 @@ class ThreeFactorController extends Controller
                 ->withErrors(['pin' => 'El PIN de seguridad ha expirado. Se ha enviado uno nuevo a tu correo.']);
         }
 
-        // SEGURIDAD: Hash::check compara el PIN en texto plano
-        // con el hash bcrypt almacenado en la BD.
-        if (! Hash::check($request->input('pin'), $user->three_factor_pin)) {
-            // SEGURIDAD: Log de intento fallido de 3FA
-            Log::channel('security')->warning('❌ [SEGURIDAD] Verificación 3FA fallida (PIN incorrecto)', [
-                'user_id'   => $user->id,
-                'email'     => $user->email,
-                'ip'        => $request->ip(),
-                'user_agent' => $request->userAgent(),
-                'timestamp' => now()->toIso8601String(),
-            ]);
+        if (! Hash::check($request->validated('pin'), $user->three_factor_pin)) {
+            $this->logSecurity('warning', '❌ [SEGURIDAD] Verificación 3FA fallida (PIN incorrecto)');
 
             return back()->withErrors([
                 'pin' => 'El PIN de seguridad es incorrecto o ha expirado.',
             ]);
         }
 
-        // SEGURIDAD: Invalidar el PIN después de uso exitoso (one-time use).
-        // Esto previene la reutilización del PIN en caso de intercepción.
+        // Invalidar PIN (one-time use)
         $user->update(['three_factor_pin' => null]);
         session()->forget('3fa_pin_generated_at');
 
-        // SEGURIDAD: Regenerar sesión para prevenir Session Fixation
-        // en cada paso exitoso de verificación MFA.
         $request->session()->regenerate();
-
-        // Elevar el nivel de autenticación a 3 (3FA completado)
         session(['auth_level' => 3]);
 
-        // SEGURIDAD: Log de verificación 3FA exitosa
-        Log::channel('security')->info('✅ [SEGURIDAD] Verificación 3FA exitosa (Admin)', [
-            'user_id'   => $user->id,
-            'email'     => $user->email,
-            'ip'        => $request->ip(),
-            'timestamp' => now()->toIso8601String(),
-        ]);
+        $this->logSecurity('info', '✅ [SEGURIDAD] Verificación 3FA exitosa (Admin)');
 
         return redirect()->route('role.redirect');
     }
