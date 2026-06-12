@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\Verify2FARequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -36,14 +37,10 @@ class TwoFactorSetupController extends Controller
         $user = Auth::user();
         $google2fa = new Google2FA();
 
-        // Generar un secreto TOTP aleatorio (base32, 16 caracteres)
         $secret = $google2fa->generateSecretKey();
 
-        // Almacenar temporalmente en la sesión para la confirmación
         session(['2fa_setup_secret' => $secret]);
 
-        // Generar la URL otpauth:// para el QR code
-        // Formato: otpauth://totp/{issuer}:{account}?secret={secret}&issuer={issuer}
         $qrCodeUrl = $google2fa->getQRCodeUrl(
             config('app.name', 'LoginSeguro'),
             $user->email,
@@ -51,7 +48,7 @@ class TwoFactorSetupController extends Controller
         );
 
         // SEGURIDAD: Generar el QR localmente como SVG.
-        // Evitamos enviar el secreto a APIs externas (ej. api.qrserver.com).
+        // Evitamos enviar el secreto a APIs externas.
         $qrCodeSvg = QrCode::size(200)
             ->margin(1)
             ->generate($qrCodeUrl);
@@ -69,13 +66,13 @@ class TwoFactorSetupController extends Controller
      * - Verifica que el código ingresado sea válido contra el secreto temporal.
      * - Solo después de verificación exitosa se guarda el secreto en la BD.
      * - El cast 'encrypted' en el modelo User cifra automáticamente al guardar.
+     *
+     * CLEAN CODE:
+     * - Validación delegada a Verify2FARequest (reutilizada con TwoFactorController).
+     * - NO usa try/catch: verifyKey() trabaja con datos locales, no servicios externos.
      */
-    public function enable(Request $request): RedirectResponse
+    public function enable(Verify2FARequest $request): RedirectResponse
     {
-        $request->validate([
-            'code' => ['required', 'string', 'size:6'],
-        ]);
-
         $secret = session('2fa_setup_secret');
 
         if (! $secret) {
@@ -85,8 +82,7 @@ class TwoFactorSetupController extends Controller
 
         $google2fa = new Google2FA();
 
-        // Verificar que el código TOTP sea válido antes de guardar el secreto
-        $valid = $google2fa->verifyKey($secret, $request->input('code'));
+        $valid = $google2fa->verifyKey($secret, $request->validated('code'));
 
         if (! $valid) {
             return back()->withErrors([
@@ -94,15 +90,11 @@ class TwoFactorSetupController extends Controller
             ]);
         }
 
-        // SEGURIDAD: Guardar el secreto cifrado en la BD
-        // El cast 'encrypted' en el modelo User se encarga del cifrado AES-256-CBC
         $user = Auth::user();
         $user->update(['two_factor_secret' => $secret]);
 
-        // Limpiar el secreto temporal de la sesión
         session()->forget('2fa_setup_secret');
 
-        // Redirigir de vuelta a la verificación 2FA
         return redirect()->route('verify.2fa')
             ->with('status', '2FA configurado exitosamente. Ahora ingresa un código para verificar.');
     }
