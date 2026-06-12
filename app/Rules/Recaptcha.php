@@ -32,6 +32,13 @@ class Recaptcha implements ValidationRule
             return;
         }
 
+        // TESTING: En entorno de testing, aceptar el token de prueba
+        // para permitir la ejecución de tests automatizados sin depender
+        // de la API externa de Google reCAPTCHA.
+        if (app()->environment('testing') && $value === 'test-token') {
+            return;
+        }
+
         try {
             // Enviar solicitud POST a la API de verificación de Google
             $response = Http::asForm()->post(

@@ -1,66 +1,112 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# 🔒 LoginSeguro
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Sistema de autenticación seguro con **MFA escalonado** (Multi-Factor Authentication) construido con Laravel 10, Breeze y Spatie Permission.
 
-## About Laravel
+## Descripción
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+LoginSeguro implementa un pipeline de autenticación progresiva basado en roles con múltiples factores de seguridad:
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| Rol | 1FA (Password) | 2FA (TOTP) | 3FA (PIN Email) | Dashboard |
+|-----|:-:|:-:|:-:|-----------|
+| **Invitado** | ✅ | — | — | `/guest-dashboard` |
+| **Usuario** | ✅ | ✅ | — | `/user-dashboard` |
+| **Admin** | ✅ | ✅ | ✅ | `/admin-dashboard` |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Stack Tecnológico
 
-## Learning Laravel
+- **Framework**: Laravel 10.x + PHP 8.1+
+- **Autenticación Base**: Laravel Breeze
+- **Roles y Permisos**: Spatie Laravel Permission
+- **2FA (TOTP)**: PragmaRX Google2FA + SimpleSoftwareIO QR Code
+- **Hashing**: Argon2id (OWASP recomendado)
+- **Logs de Desarrollo**: Laravel Telescope (solo `--dev`)
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Características de Seguridad
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+- ✅ Validación estricta de contraseñas (min 12 chars + HIBP)
+- ✅ reCAPTCHA v2 en login, registro y recuperación de contraseña
+- ✅ Sanitización global de inputs (`strip_tags`) vía middleware
+- ✅ Rate Limiting en login (5/min), 2FA (3/min), 3FA (3/min)
+- ✅ Prevención de enumeración de usuarios (mensajes genéricos)
+- ✅ Headers HTTP de seguridad (CSP, HSTS, COOP, CORP, X-Frame-Options)
+- ✅ Cifrado de sesiones (AES-256-CBC) con SameSite=strict
+- ✅ Logs de auditoría dedicados (canal `security`, retención 90 días)
+- ✅ Session Fixation prevention (regeneración en cada paso MFA)
+- ✅ Sesiones concurrentes restringidas (un dispositivo activo)
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Estándar de Documentación
 
-## Laravel Sponsors
+> **El proyecto sigue el estándar de documentación [PHPDoc](https://docs.phpdoc.org/guide/references/phpdoc/index.html) para todas las clases y métodos.**
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+Todas las clases, métodos y funciones del proyecto están documentados utilizando el estándar **PHPDoc (PSR-5 Draft)**, que incluye:
 
-### Premium Partners
+- **Docblocks de clase** (`/** ... */`): Describen el propósito, la referencia OWASP aplicable y el contexto de seguridad.
+- **Docblocks de método**: Incluyen `@param`, `@return`, `@throws` y descripción funcional.
+- **Comentarios de bloque** (`// ===...`): Separan secciones lógicas con explicación del "por qué", no solo del "qué".
+- **Referencias OWASP**: Cada medida de seguridad referencia la categoría OWASP Top 10 2021 que mitiga (ej: A03:2021, A07:2021, A09:2021).
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+### Ejemplo de formato utilizado:
 
-## Contributing
+```php
+/**
+ * SEGURIDAD - PUNTO 2: Prevención de Enumeración de Usuarios
+ * ============================================================
+ * Mitiga: OWASP A07:2021 - Identification and Authentication Failures
+ *
+ * @param  \Illuminate\Http\Request  $request
+ * @return \Illuminate\Http\RedirectResponse
+ * @throws \Illuminate\Validation\ValidationException
+ */
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Herramientas de Desarrollo
 
-## Code of Conduct
+### Laravel Telescope
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Herramienta de debugging disponible **solo en entorno local** (`--dev`):
 
-## Security Vulnerabilities
+```
+http://localhost:8000/telescope
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Monitorea: Requests, Queries SQL, Excepciones, Logs, Cache, Mail, Jobs, Eventos.
 
-## License
+> **Nota**: Los datos sensibles (contraseñas, tokens, PINs) se enmascaran automáticamente en Telescope.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## Instalación
+
+```bash
+# Clonar el repositorio
+git clone <repo-url> LoginSeguro
+cd LoginSeguro
+
+# Instalar dependencias
+composer install
+npm install && npm run build
+
+# Configurar entorno
+cp .env.example .env
+php artisan key:generate
+
+# Ejecutar migraciones y seeders
+php artisan migrate --seed
+```
+
+## Usuarios de Prueba
+
+| Rol | Email | Contraseña |
+|-----|-------|------------|
+| Invitado | `invitado@test.com` | `f33_K4Na%/VG` |
+| Usuario | `usuario@test.com` | `f33_K4Na%/VG` |
+| Admin | `admin@test.com` | `f33_K4Na%/VG` |
+
+## Documentación Adicional
+
+- [`SECURITY.md`](SECURITY.md) — Políticas de seguridad y reporte de vulnerabilidades
+- [`EXPLICACION_HARDENING_COMPLETA.md`](EXPLICACION_HARDENING_COMPLETA.md) — Explicación detallada de cada medida de seguridad
+- [`TESTING.md`](TESTING.md) — Metodología y documentación de pruebas
+
+## Licencia
+
+Este proyecto es software de código abierto bajo la licencia [MIT](https://opensource.org/licenses/MIT).
+

@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use App\Rules\Recaptcha;
 
 /**
  * SEGURIDAD - PUNTO 2: Prevención de Enumeración de Usuarios
@@ -45,6 +46,9 @@ class LoginRequest extends FormRequest
         return [
             'email' => ['required', 'string', 'email'],
             'password' => ['required', 'string'],
+            // Validación de reCAPTCHA: previene ataques automatizados de fuerza bruta
+            // antes de que el rate limiting entre en acción.
+            'g-recaptcha-response' => ['required', new Recaptcha],
         ];
     }
 

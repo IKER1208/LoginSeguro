@@ -22,7 +22,7 @@
         <div>
             <x-input-label for="pin" :value="__('PIN de Seguridad')" />
             <x-text-input id="pin" class="block mt-1 w-full" type="text"
-                          name="pin" required autofocus autocomplete="one-time-code"
+                          name="pin" autofocus autocomplete="one-time-code"
                           maxlength="6" pattern="[0-9]{6}"
                           placeholder="000000" />
             <x-input-error :messages="$errors->get('pin')" class="mt-2" />

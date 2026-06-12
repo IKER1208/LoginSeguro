@@ -7,6 +7,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Password;
 use Illuminate\View\View;
+use App\Rules\Recaptcha;
 
 /**
  * SEGURIDAD - PUNTO 2: Prevención de Enumeración de Usuarios (Password Reset)
@@ -46,6 +47,9 @@ class PasswordResetLinkController extends Controller
     {
         $request->validate([
             'email' => ['required', 'email'],
+            // Validación de reCAPTCHA: previene abuso automatizado del flujo
+            // de recuperación de contraseña y enumeración de emails.
+            'g-recaptcha-response' => ['required', new Recaptcha],
         ]);
 
         // Intentar enviar el enlace de recuperación.

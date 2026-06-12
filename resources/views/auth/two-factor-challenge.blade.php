@@ -18,7 +18,7 @@
         <div>
             <x-input-label for="code" :value="__('Código de verificación')" />
             <x-text-input id="code" class="block mt-1 w-full" type="text"
-                          name="code" required autofocus autocomplete="one-time-code"
+                          name="code" autofocus autocomplete="one-time-code"
                           maxlength="6" pattern="[0-9]{6}"
                           placeholder="000000" />
             <x-input-error :messages="$errors->get('code')" class="mt-2" />

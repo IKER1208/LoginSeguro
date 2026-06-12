@@ -23,6 +23,15 @@ class Kernel extends HttpKernel
         \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
 
         // ============================================================
+        // SEGURIDAD - Requerimiento 4: Sanitización de Inputs (Global)
+        // ============================================================
+        // Aplica strip_tags() a todos los valores string del request
+        // para eliminar etiquetas HTML/PHP antes de la validación.
+        // Complementa la protección de salida de Blade ({{ }}).
+        // Excluye campos de contraseña para no alterar sus caracteres.
+        \App\Http\Middleware\SanitizeInput::class,
+
+        // ============================================================
         // SEGURIDAD - PUNTO 5: Headers HTTP de Seguridad (Global)
         // ============================================================
         // Se aplica a TODAS las solicitudes HTTP de la aplicación.
