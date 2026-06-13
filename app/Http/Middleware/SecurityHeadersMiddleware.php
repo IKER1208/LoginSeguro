@@ -37,6 +37,17 @@ class SecurityHeadersMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
+        // Excepción para Laravel Telescope
+        // Telescope usa scripts y estilos inline que chocan con el CSP estricto.
+        // Como es una herramienta de desarrollo/admin, relajamos las cabeceras aquí.
+        if ($request->is('telescope', 'telescope/*')) {
+            /** @var \Symfony\Component\HttpFoundation\Response $response */
+            $response = $next($request);
+            $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
+            $response->headers->set('X-Content-Type-Options', 'nosniff');
+            return $response;
+        }
+
         /** @var \Symfony\Component\HttpFoundation\Response $response */
         $response = $next($request);
 
