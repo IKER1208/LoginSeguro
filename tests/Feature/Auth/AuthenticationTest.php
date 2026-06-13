@@ -25,10 +25,13 @@ class AuthenticationTest extends TestCase
         $response = $this->post('/login', [
             'email' => $user->email,
             'password' => 'password',
+            'g-recaptcha-response' => 'test-token',
         ]);
 
         $this->assertAuthenticated();
-        $response->assertRedirect(RouteServiceProvider::HOME);
+        // Después de 1FA exitoso, el sistema redirige al pipeline MFA
+        // (role.redirect), no directamente a HOME.
+        $response->assertRedirect(route('role.redirect'));
     }
 
     public function test_users_can_not_authenticate_with_invalid_password(): void
@@ -38,6 +41,7 @@ class AuthenticationTest extends TestCase
         $this->post('/login', [
             'email' => $user->email,
             'password' => 'wrong-password',
+            'g-recaptcha-response' => 'test-token',
         ]);
 
         $this->assertGuest();
