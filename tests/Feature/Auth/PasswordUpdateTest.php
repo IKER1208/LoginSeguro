@@ -15,20 +15,22 @@ class PasswordUpdateTest extends TestCase
     {
         $user = User::factory()->create();
 
+        // Contraseña que cumple Password::defaults():
+        // mín. 12 chars, letras, números y símbolos.
         $response = $this
             ->actingAs($user)
             ->from('/profile')
             ->put('/password', [
                 'current_password' => 'password',
-                'password' => 'new-password',
-                'password_confirmation' => 'new-password',
+                'password' => 'NewSecure1!xx',
+                'password_confirmation' => 'NewSecure1!xx',
             ]);
 
         $response
             ->assertSessionHasNoErrors()
             ->assertRedirect('/profile');
 
-        $this->assertTrue(Hash::check('new-password', $user->refresh()->password));
+        $this->assertTrue(Hash::check('NewSecure1!xx', $user->refresh()->password));
     }
 
     public function test_correct_password_must_be_provided_to_update_password(): void
@@ -40,8 +42,8 @@ class PasswordUpdateTest extends TestCase
             ->from('/profile')
             ->put('/password', [
                 'current_password' => 'wrong-password',
-                'password' => 'new-password',
-                'password_confirmation' => 'new-password',
+                'password' => 'NewSecure1!xx',
+                'password_confirmation' => 'NewSecure1!xx',
             ]);
 
         $response
