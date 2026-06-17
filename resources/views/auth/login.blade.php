@@ -1,4 +1,8 @@
 <x-guest-layout>
+    <div class="mb-4 text-center text-lg font-bold text-gray-700 dark:text-gray-300">
+        {{ config('app.server_name') }}
+    </div>
+
     <!-- Session Status -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
 
